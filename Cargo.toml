@@ -8,3 +8,4 @@ default-run = "aoc"
 
 [dependencies]
 itertools = "0.10.3"
+deepsize = "0.2.0"

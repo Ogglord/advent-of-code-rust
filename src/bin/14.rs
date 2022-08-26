@@ -1,51 +1,31 @@
 use itertools::Itertools;
-use std::collections::HashMap; // 0.8.0
+use std::collections::HashMap; // 0.8.0'
 
-fn str_to_tuple<'a, T: Iterator<Item = &'a str>>(iter: T) -> impl Iterator<Item = (&'a str, char)> {
-    iter.map(|c| c.split_once(" -> ").unwrap())
-        .map(|t| (t.0, t.1.chars().next().unwrap()))
+fn main() {
+    aoc::solve!(&aoc::read_file("inputs", 14), part_one, part_two)
 }
 
-pub fn part_one(input: &str) -> u32 {
-    let mut key = String::from(input.lines().next().unwrap());
+// workaround for https://github.com/rust-lang/rust/issues/34511#issuecomment-373455139
+trait Captures<'a> {}
+impl<'a, T: ?Sized> Captures<'a> for T {}
 
-    let key_value_pairs = input.lines().filter(|&line| line.contains(">"));
-    // sort them into a hashmap (AB -> C) etc...
-    let m: HashMap<_, _> = str_to_tuple(key_value_pairs).into_iter().collect();
-
-    // perform the replacements, 10 times
-    for i in 0..10 {
-        let mut v = Vec::new();
-        let mut final_char = char::MAX;
-        for (a, b) in key.chars().tuple_windows() {
-            v.push(a);
-            v.push(m[&String::from_iter([a, b]) as &str]);
-            final_char = b;
-        }
-        v.push(final_char);
-        key = String::from_iter(v);
-    }
-    println!("After final iteration length: {}", key.len());
-    let hm = key.chars().fold(HashMap::new(), |mut hm, c| {
-        *hm.entry(c).or_insert(0) += 1;
-        hm
-    });
-
-    // find the least + most common character (min, max)
-    let mut min_max = (0, 0);
-    for (_, val) in hm.iter() {
-        if *val > min_max.1 {
-            min_max.1 = *val;
-        }
-        if *val < min_max.0 || min_max.0 == 0 {
-            min_max.0 = *val;
-        }
-    }
-    min_max.1 - min_max.0
+fn str_to_char<'p, T: Iterator<Item = &'p str>>(
+    iter: T,
+) -> impl Iterator<Item = ((char, char), char)> + Captures<'p> {
+    iter.map(|c| c.split_once(" -> ").unwrap()).map(|t| {
+        (
+            t.0.chars().collect_tuple::<(char, char)>().unwrap(),
+            t.1.chars().next().unwrap(),
+        )
+    })
 }
 
-pub fn part_two(_input: &str) -> u32 {
-    0
+pub fn part_one(input: &str) -> u64 {
+    run2(input, 10).try_into().unwrap()
+}
+
+pub fn part_two(input: &str) -> u64 {
+    run2(input, 40).try_into().unwrap()
 }
 
 #[cfg(test)]
@@ -63,6 +43,47 @@ mod tests {
     fn test_part_two() {
         use aoc::read_file;
         let input = read_file("examples", 14);
-        assert_eq!(part_two(&input), 0);
+        assert_eq!(part_two(&input), 2188189693529);
     }
+}
+
+fn run2(input: &str, iterations: u32) -> u128 {
+    let key = String::from(input.lines().next().unwrap());
+
+    let key_value_pairs_str = input.lines().filter(|&line| line.contains('>'));
+    // sort them into a hashmap (AB -> C) etc...
+    let key_value_pairs: HashMap<_, _> = str_to_char(key_value_pairs_str).into_iter().collect();
+
+    let mut status: HashMap<_, u128> = key
+        .chars()
+        .tuple_windows::<(_, _)>()
+        .map(|p| (p, 1))
+        .collect();
+
+    //println!("{:?}", status);
+
+    for _i in 0..iterations {
+        let iter_vector = status.into_iter();
+        let mut updated_status = HashMap::new();
+        for (a, b) in iter_vector {
+            let c = key_value_pairs[&a];
+            *updated_status.entry((a.0, c)).or_insert(0) += b;
+            *updated_status.entry((c, a.1)).or_insert(0) += b;
+        }
+
+        status = updated_status;
+        //println!("After iteration {} polymer length: {}", i, status.len());
+        //println!("{}", DeepSizeOf::deep_size_of(&status));
+    }
+
+    let mut char_counts: HashMap<char, u128> = HashMap::new();
+
+    for (k, v) in status {
+        *char_counts.entry(k.0).or_insert(0) += v;
+    }
+
+    let max = char_counts.values().max().unwrap() + 1; // we know we had a trailing B, missing...;
+    let min = char_counts.values().min().unwrap();
+
+    max - min
 }
