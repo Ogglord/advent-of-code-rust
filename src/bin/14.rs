@@ -9,13 +9,16 @@ fn main() {
 trait Captures<'a> {}
 impl<'a, T: ?Sized> Captures<'a> for T {}
 
-fn str_to_char<'p, T: Iterator<Item = &'p str>>(
+fn str_to_dict<'p, T: Iterator<Item = &'p str>>(
     iter: T,
-) -> impl Iterator<Item = ((char, char), char)> + Captures<'p> {
+) -> impl Iterator<Item = (&'p [u8], (&'p [u8; 2], &'p [u8; 2]))> + Captures<'p> {
     iter.map(|c| c.split_once(" -> ").unwrap()).map(|t| {
         (
-            t.0.chars().collect_tuple::<(char, char)>().unwrap(),
-            t.1.chars().next().unwrap(),
+            t.0[0..2].as_bytes(),
+            (
+                &[*t.0[0..1].as_bytes(), *t.1[0..1].as_bytes()],
+                &[*t.0[0..1].as_bytes(), *t.1[0..1].as_bytes()],
+            ),
         )
     })
 }
@@ -24,7 +27,7 @@ pub fn part_one(input: &str) -> u64 {
     run2(input, 10).try_into().unwrap()
 }
 
-pub fn part_two(input: &str) -> u64 {
+pub fn part_two(input: &str) -> u128 {
     run2(input, 40).try_into().unwrap()
 }
 
@@ -40,6 +43,13 @@ mod tests {
     }
 
     #[test]
+    fn test_part_one_real() {
+        use aoc::read_file;
+        let input = read_file("inputs", 14);
+        assert_eq!(part_one(&input), 2703);
+    }
+
+    #[test]
     fn test_part_two() {
         use aoc::read_file;
         let input = read_file("examples", 14);
@@ -50,40 +60,31 @@ mod tests {
 fn run2(input: &str, iterations: u32) -> u128 {
     let key = String::from(input.lines().next().unwrap());
 
-    let key_value_pairs_str = input.lines().filter(|&line| line.contains('>'));
-    // sort them into a hashmap (AB -> C) etc...
-    let key_value_pairs: HashMap<_, _> = str_to_char(key_value_pairs_str).into_iter().collect();
+    let rules = input
+        .lines()
+        .filter(|&line| line.contains('>'))
+        .map(|l| {
+            let (k, v) = l.split_once(" -> ").unwrap();
+            let (k, v) = (k.as_bytes(), v.as_bytes()[0]);
+            ([k[0], k[1]], [k[0], v])
+        })
+        .collect::<Vec<_>>();
 
-    let mut status: HashMap<_, u128> = key
-        .chars()
-        .tuple_windows::<(_, _)>()
-        .map(|p| (p, 1))
-        .collect();
+    rules.sort_unstable_by_key(|k| k.0);
 
-    //println!("{:?}", status);
+    let rules_to_index = rules
+        .iter()
+        .map(|r| {
+            (
+                r.0,
+                rules.binary_search_by_key(&r.1, |(k, v)| *k), // index of r.1
+                rules.binary_search_by_key(&[r.1[1], r.0[1]], |(k, v)| *k), // index of "r.2"
+            )
+        })
+        .collect::<Vec<_>>();
 
-    for _i in 0..iterations {
-        let iter_vector = status.into_iter();
-        let mut updated_status = HashMap::new();
-        for (a, b) in iter_vector {
-            let c = key_value_pairs[&a];
-            *updated_status.entry((a.0, c)).or_insert(0) += b;
-            *updated_status.entry((c, a.1)).or_insert(0) += b;
-        }
-
-        status = updated_status;
-        //println!("After iteration {} polymer length: {}", i, status.len());
-        //println!("{}", DeepSizeOf::deep_size_of(&status));
-    }
-
-    let mut char_counts: HashMap<char, u128> = HashMap::new();
-
-    for (k, v) in status {
-        *char_counts.entry(k.0).or_insert(0) += v;
-    }
-
-    let max = char_counts.values().max().unwrap() + 1; // we know we had a trailing B, missing...;
-    let min = char_counts.values().min().unwrap();
-
-    max - min
+    let count = vec![0; rules.len()];
+    for _ in 0..40 {}
+        let newCount = 
+    todo!() // return actual max-min
 }

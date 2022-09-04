@@ -1,9 +1,9 @@
 pub fn part_one(input: &str) -> u32 {
-    0
+    todo!()
 }
 
 pub fn part_two(input: &str) -> u32 {
-    0
+    todo!()
 }
 
 fn main() {
